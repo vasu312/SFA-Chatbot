@@ -16,7 +16,7 @@ android {
         versionName = "1.0"
 
         // Backend base URL (10.0.2.2 maps to host machine from Android emulator)
-        buildConfigField("String", "BASE_URL", "\"http://192.168.6.47:8000/\"")
+        buildConfigField("String", "BASE_URL", "\"http://192.168.1.7:8000/\"")
         buildConfigField("String", "API_KEY", "\"sfa-chatbot-secret-key-2026\"")
     }
 

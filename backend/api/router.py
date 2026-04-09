@@ -9,9 +9,10 @@ from api.schemas import (
     ColumnInfo,
     HealthResponse,
     SchemaResponse,
+    SummaryResponse,
     TableSchema,
 )
-from core.database import check_connection, get_table_schema
+from core.database import check_connection, get_summary_stats, get_table_schema
 from core.vanna_client import generate_and_execute
 from config import settings
 
@@ -37,6 +38,17 @@ async def health():
         status="healthy" if (db_ok and llm_ready) else "degraded",
         database_connected=db_ok,
         vanna_ready=llm_ready,
+    )
+
+
+@router.get("/summary", response_model=SummaryResponse)
+async def summary():
+    """Return day and month summary stats based on the most recent data date."""
+    data = get_summary_stats()
+    return SummaryResponse(
+        day=data["day"],
+        month=data["month"],
+        reference_date=data["reference_date"],
     )
 
 

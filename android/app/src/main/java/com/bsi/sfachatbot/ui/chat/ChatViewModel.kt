@@ -2,6 +2,7 @@ package com.bsi.sfachatbot.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bsi.sfachatbot.data.remote.dto.SummaryResponse
 import com.bsi.sfachatbot.data.repository.ChatRepository
 import com.bsi.sfachatbot.model.ChatMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,16 @@ class ChatViewModel(
     /** Loading state for the send operation. */
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    /** Dashboard summary stats loaded on startup. */
+    private val _summary = MutableStateFlow<SummaryResponse?>(null)
+    val summary: StateFlow<SummaryResponse?> = _summary.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _summary.value = repository.fetchSummary()
+        }
+    }
 
     fun sendQuestion(question: String) {
         if (question.isBlank() || _isLoading.value) return

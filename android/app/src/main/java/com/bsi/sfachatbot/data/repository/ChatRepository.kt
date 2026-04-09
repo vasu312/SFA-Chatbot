@@ -5,6 +5,7 @@ import com.bsi.sfachatbot.data.local.entity.ChatMessageEntity
 import com.bsi.sfachatbot.data.remote.ApiService
 import com.bsi.sfachatbot.data.remote.dto.ChatRequest
 import com.bsi.sfachatbot.data.remote.dto.ChatResponse
+import com.bsi.sfachatbot.data.remote.dto.SummaryResponse
 import com.bsi.sfachatbot.model.ChatMessage
 import com.bsi.sfachatbot.model.TableData
 import com.bsi.sfachatbot.util.NetworkResult
@@ -12,6 +13,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class ChatRepository(
     private val apiService: ApiService,
@@ -52,22 +56,34 @@ class ChatRepository(
                 chatDao.insertMessage(systemMessage)
                 NetworkResult.Success(systemMessage.toDomain())
             } else {
-                val errorMsg = response.errorBody()?.string() ?: "Unknown error"
                 val errorEntity = ChatMessageEntity(
-                    content = "Error: $errorMsg",
+                    content = "Server error. Please try again later.",
                     isUser = false
                 )
                 chatDao.insertMessage(errorEntity)
-                NetworkResult.Error(errorMsg, response.code())
+                NetworkResult.Error("Server error", response.code())
             }
+        } catch (e: UnknownHostException) {
+            saveErrorMessage("No internet connection. Please check your network.")
+            NetworkResult.Error(e.localizedMessage ?: "No internet")
+        } catch (e: SocketTimeoutException) {
+            saveErrorMessage("Request timed out. Please try again.")
+            NetworkResult.Error(e.localizedMessage ?: "Timeout")
+        } catch (e: IOException) {
+            saveErrorMessage("Network error. Please check your connection.")
+            NetworkResult.Error(e.localizedMessage ?: "IO error")
         } catch (e: Exception) {
-            val errorMsg = e.localizedMessage ?: "Could not reach server"
-            val errorEntity = ChatMessageEntity(
-                content = "Network error: $errorMsg",
-                isUser = false
-            )
-            chatDao.insertMessage(errorEntity)
-            NetworkResult.Error(errorMsg)
+            saveErrorMessage("Something went wrong. Please try again.")
+            NetworkResult.Error(e.localizedMessage ?: "Unknown error")
+        }
+    }
+
+    suspend fun fetchSummary(): SummaryResponse? {
+        return try {
+            val response = apiService.getSummary()
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -75,9 +91,28 @@ class ChatRepository(
         chatDao.clearAll()
     }
 
+    private suspend fun saveErrorMessage(message: String) {
+        chatDao.insertMessage(ChatMessageEntity(content = message, isUser = false))
+    }
+
+    private fun mapApiError(error: String?): String {
+        if (error == null) return "Something went wrong. Please try again."
+        return when {
+            error.contains("Only SELECT", ignoreCase = true) ->
+                "I can only answer read-only questions about your data."
+            error.contains("Failed to generate SQL", ignoreCase = true) ->
+                "I couldn't understand your question. Please try rephrasing it."
+            error.contains("SQL execution failed", ignoreCase = true) ->
+                "I had trouble running that query. Try rephrasing your question."
+            error.contains("Could not generate", ignoreCase = true) ->
+                "I couldn't understand your question. Please try rephrasing it."
+            else -> "Something went wrong. Please try again."
+        }
+    }
+
     private fun buildTableData(response: ChatResponse): Pair<String, TableData?> {
         if (response.status == "error") {
-            return Pair(response.error ?: "An unknown error occurred.", null)
+            return Pair(mapApiError(response.error), null)
         }
         val results = response.results
         if (results.isNullOrEmpty()) {

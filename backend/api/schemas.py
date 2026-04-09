@@ -40,3 +40,16 @@ class TableSchema(BaseModel):
 
 class SchemaResponse(BaseModel):
     tables: List[TableSchema]
+
+
+class SummaryStats(BaseModel):
+    order_count: int
+    order_value: float
+    total_visits: int
+    lines_sold: int
+
+
+class SummaryResponse(BaseModel):
+    day: SummaryStats
+    month: SummaryStats
+    reference_date: str

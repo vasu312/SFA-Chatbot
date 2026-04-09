@@ -55,6 +55,16 @@ Rules:
 - Use exact column and table names from the schema above.
 - Boolean fields (is_active, has_order) store the text 'true' or 'false'.
 - IDs are VARCHAR strings, not integers.
+- Always use readable Title Case aliases for computed or ambiguous columns. Examples:
+    COUNT(*) AS "Total Orders"
+    SUM(total_amount) AS "Total Value"
+    AVG(unit_price) AS "Avg Unit Price"
+    SUM(oi.quantity) AS "Total Quantity"
+    s.name AS "Salesman Name"
+    o.order_date AS "Order Date"
+    strftime('%Y-%m', order_date) AS "Month"
+    ROUND(..., 2) AS "Percentage"
+  Plain columns from a single unambiguous table (e.g. id, name, status) do not need aliases.
 """
 
 
