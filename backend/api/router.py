@@ -12,7 +12,8 @@ from api.schemas import (
     TableSchema,
 )
 from core.database import check_connection, get_table_schema
-from core.vanna_client import generate_and_execute, get_vanna
+from core.vanna_client import generate_and_execute
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,11 @@ async def chat(request: ChatRequest):
 async def health():
     """Health check endpoint."""
     db_ok = check_connection()
-    vanna_ok = get_vanna() is not None
+    llm_ready = bool(settings.ANTHROPIC_API_KEY)
     return HealthResponse(
-        status="healthy" if (db_ok and vanna_ok) else "degraded",
+        status="healthy" if (db_ok and llm_ready) else "degraded",
         database_connected=db_ok,
-        vanna_ready=vanna_ok,
+        vanna_ready=llm_ready,
     )
 
 

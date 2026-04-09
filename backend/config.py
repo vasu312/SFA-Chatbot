@@ -1,3 +1,5 @@
+from typing import List
+
 from pydantic_settings import BaseSettings
 
 
@@ -10,15 +12,15 @@ class Settings(BaseSettings):
     # Database
     SQLITE_DB_PATH: str = "./data/sfa.db"
 
-    # Vanna / LLM
-    OPENAI_API_KEY: str
-    LLM_MODEL: str = "gpt-4o-mini"
+    # Vanna / LLM (Anthropic)
+    ANTHROPIC_API_KEY: str
+    LLM_MODEL: str = "claude-sonnet-4-20250514"
 
     # ChromaDB (vector store for Vanna training data)
     CHROMADB_PATH: str = "./data/chromadb"
 
     # CORS
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: List[str] = ["*"]
 
     class Config:
         env_file = ".env"

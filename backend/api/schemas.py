@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,9 +16,9 @@ class ChatResponse(BaseModel):
     status: str
     question: str
     generated_sql: Optional[str] = None
-    results: list[dict] = []
+    results: List[Dict] = []
     row_count: int = 0
-    columns: list[str] = []
+    columns: List[str] = []
     error: Optional[str] = None
 
 
@@ -35,8 +35,8 @@ class ColumnInfo(BaseModel):
 
 class TableSchema(BaseModel):
     name: str
-    columns: list[ColumnInfo]
+    columns: List[ColumnInfo]
 
 
 class SchemaResponse(BaseModel):
-    tables: list[TableSchema]
+    tables: List[TableSchema]

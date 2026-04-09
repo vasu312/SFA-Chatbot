@@ -1,5 +1,7 @@
 import sqlite3
 from contextlib import contextmanager
+from typing import Dict, List
+
 from config import settings
 
 
@@ -18,7 +20,7 @@ def get_readonly_connection():
         conn.close()
 
 
-def get_table_schema() -> list[dict]:
+def get_table_schema() -> List[Dict]:
     """Return all tables and their columns from the database."""
     with get_readonly_connection() as conn:
         cursor = conn.execute(

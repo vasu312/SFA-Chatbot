@@ -1,11 +1,12 @@
 # Core framework
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic==2.10.3
-pydantic-settings==2.7.0
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
 
-# Vanna AI (legacy API with ChromaDB + OpenAI)
-vanna[chromadb,openai]
+# Vanna AI (legacy API with ChromaDB + Anthropic)
+vanna[chromadb]
+anthropic
 
 # Data processing
 pandas>=2.0.0
