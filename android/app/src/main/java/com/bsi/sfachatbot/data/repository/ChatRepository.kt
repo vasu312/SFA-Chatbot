@@ -4,8 +4,12 @@ import com.bsi.sfachatbot.data.local.ChatDao
 import com.bsi.sfachatbot.data.local.entity.ChatMessageEntity
 import com.bsi.sfachatbot.data.remote.ApiService
 import com.bsi.sfachatbot.data.remote.dto.ChatRequest
+import com.bsi.sfachatbot.data.remote.dto.ChatResponse
 import com.bsi.sfachatbot.model.ChatMessage
+import com.bsi.sfachatbot.model.TableData
 import com.bsi.sfachatbot.util.NetworkResult
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -13,6 +17,7 @@ class ChatRepository(
     private val apiService: ApiService,
     private val chatDao: ChatDao
 ) {
+    private val gson = Gson()
 
     /** Observe all messages from Room (single source of truth). */
     val allMessages: Flow<List<ChatMessage>> =
@@ -27,7 +32,6 @@ class ChatRepository(
      * 3. Save system response to Room.
      */
     suspend fun sendQuestion(question: String): NetworkResult<ChatMessage> {
-        // Save user message locally
         chatDao.insertMessage(
             ChatMessageEntity(content = question, isUser = true)
         )
@@ -37,11 +41,13 @@ class ChatRepository(
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
-                val answerText = formatResponse(body)
+                val (answerText, tableData) = buildTableData(body)
+                val tableJson = tableData?.let { gson.toJson(it) }
                 val systemMessage = ChatMessageEntity(
                     content = answerText,
                     isUser = false,
-                    sql = body.generatedSql
+                    sql = body.generatedSql,
+                    tableJson = tableJson
                 )
                 chatDao.insertMessage(systemMessage)
                 NetworkResult.Success(systemMessage.toDomain())
@@ -69,42 +75,24 @@ class ChatRepository(
         chatDao.clearAll()
     }
 
-    /**
-     * Format the API response into a readable chat message.
-     */
-    private fun formatResponse(
-        response: com.bsi.sfachatbot.data.remote.dto.ChatResponse
-    ): String {
+    private fun buildTableData(response: ChatResponse): Pair<String, TableData?> {
         if (response.status == "error") {
-            return response.error ?: "An unknown error occurred."
+            return Pair(response.error ?: "An unknown error occurred.", null)
         }
-
         val results = response.results
         if (results.isNullOrEmpty()) {
-            return "No results found for your query."
+            return Pair("No results found for your query.", null)
         }
-
         val columns = response.columns ?: results.first().keys.toList()
-        val sb = StringBuilder()
-
-        // Format as a readable table
-        results.forEachIndexed { index, row ->
-            if (results.size > 1) {
-                sb.appendLine("--- Row ${index + 1} ---")
-            }
-            for (col in columns) {
-                val value = row[col] ?: "-"
-                sb.appendLine("$col: $value")
-            }
-            if (index < results.size - 1) sb.appendLine()
-        }
-
-        sb.appendLine()
-        sb.append("(${response.rowCount} row(s) returned)")
-
-        return sb.toString().trim()
+        val rows = results.map { row -> columns.map { col -> row[col]?.toString() ?: "-" } }
+        return Pair("", TableData(columns = columns, rows = rows, rowCount = response.rowCount))
     }
 
-    private fun ChatMessageEntity.toDomain() =
-        ChatMessage(id, content, isUser, sql, timestamp)
+    private fun ChatMessageEntity.toDomain(): ChatMessage {
+        val tableData: TableData? = tableJson?.let {
+            val type = object : TypeToken<TableData>() {}.type
+            gson.fromJson(it, type)
+        }
+        return ChatMessage(id, content, isUser, sql, tableData, timestamp)
+    }
 }

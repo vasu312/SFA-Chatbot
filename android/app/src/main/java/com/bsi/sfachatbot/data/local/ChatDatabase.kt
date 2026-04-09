@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.bsi.sfachatbot.data.local.entity.ChatMessageEntity
 
-@Database(entities = [ChatMessageEntity::class], version = 1, exportSchema = false)
+@Database(entities = [ChatMessageEntity::class], version = 2, exportSchema = false)
 abstract class ChatDatabase : RoomDatabase() {
 
     abstract fun chatDao(): ChatDao
@@ -21,7 +21,9 @@ abstract class ChatDatabase : RoomDatabase() {
                     context.applicationContext,
                     ChatDatabase::class.java,
                     "sfa_chatbot.db"
-                ).build().also { INSTANCE = it }
+                )
+                .fallbackToDestructiveMigration()
+                .build().also { INSTANCE = it }
             }
         }
     }

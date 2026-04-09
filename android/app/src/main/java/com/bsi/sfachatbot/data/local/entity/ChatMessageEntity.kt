@@ -12,5 +12,7 @@ data class ChatMessageEntity(
     @ColumnInfo(name = "is_user")
     val isUser: Boolean,
     val sql: String? = null,
+    @ColumnInfo(name = "table_json")
+    val tableJson: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
