@@ -125,6 +125,9 @@ class ChatRepository(
     private fun mapApiError(error: String?): String {
         if (error == null) return "Something went wrong. Please try again."
         return when {
+            error.contains("not_a_data_question", ignoreCase = true) ->
+                "Hi! I'm your SFA assistant. I can answer questions about your sales data — " +
+                "try \"Total orders this month\", \"Top 5 salesmen by revenue\", or \"Show all products\"."
             error.contains("Only SELECT", ignoreCase = true) ->
                 "I can only answer read-only questions about your data."
             error.contains("Failed to generate SQL", ignoreCase = true) ->

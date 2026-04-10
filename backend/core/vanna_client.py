@@ -72,6 +72,34 @@ _SYSTEM_PROMPT: str = _build_system_prompt()
 
 
 # ---------------------------------------------------------------------------
+# Conversational message detection
+# ---------------------------------------------------------------------------
+
+_CONVERSATIONAL_WORDS = {
+    "hi", "hello", "hey", "howdy", "hiya",
+    "thanks", "thank", "you", "cheers", "ok", "okay", "great", "cool", "awesome",
+    "bye", "goodbye", "see", "later",
+    "who", "what", "help", "can", "are", "do", "does",
+    "good", "morning", "afternoon", "evening", "night",
+}
+
+_GREETING_PHRASES = {"hi", "hello", "hey", "thanks", "bye", "howdy", "hiya"}
+
+
+def _is_conversational(question: str) -> bool:
+    """Return True if the question is clearly conversational, not a data query.
+
+    Matches pure greetings/pleasantries so we skip the LLM call entirely and
+    avoid the ~60s token-generation delay for non-SQL responses.
+    """
+    q = question.lower().strip().rstrip("!.,?")
+    if q in _GREETING_PHRASES:
+        return True
+    words = set(q.split())
+    return bool(words) and words.issubset(_CONVERSATIONAL_WORDS)
+
+
+# ---------------------------------------------------------------------------
 # Core functions
 # ---------------------------------------------------------------------------
 
@@ -111,6 +139,20 @@ def generate_and_execute(question: str) -> dict:
     and error fields. Always returns HTTP-200-friendly data; errors are in the
     'error' field.
     """
+    # Short-circuit: skip the LLM entirely for greetings/conversational messages.
+    # Without this, the LLM generates a long text reply (~60s) which hits the
+    # Android read timeout before the backend can return an error response.
+    if _is_conversational(question):
+        logger.info(f"Conversational message intercepted (no LLM call): {question!r}")
+        return {
+            "status": "error",
+            "generated_sql": None,
+            "results": [],
+            "row_count": 0,
+            "columns": [],
+            "error": "not_a_data_question",
+        }
+
     # Generate SQL
     try:
         sql = _generate_sql(question)
