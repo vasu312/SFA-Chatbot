@@ -9,8 +9,17 @@ data class SummaryStats(
     @SerializedName("lines_sold") val linesSold: Int
 )
 
+data class TopPerformer(
+    val name: String,
+    val value: Float
+)
+
 data class SummaryResponse(
     val day: SummaryStats,
     val month: SummaryStats,
-    @SerializedName("reference_date") val referenceDate: String
+    @SerializedName("reference_date") val referenceDate: String,
+    @SerializedName("top_salesman") val topSalesman: TopPerformer? = null,
+    @SerializedName("top_outlet") val topOutlet: TopPerformer? = null,
+    @SerializedName("top_product") val topProduct: TopPerformer? = null,
+    @SerializedName("top_route") val topRoute: TopPerformer? = null
 )

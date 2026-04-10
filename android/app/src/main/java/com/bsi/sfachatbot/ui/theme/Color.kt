@@ -41,3 +41,20 @@ val ChipBorder = Color(0xFF90CAF9)
 
 // System message accent border
 val SystemMessageBorder = Color(0xFF42A5F5)
+
+// Dashboard background gradient
+val DashboardBgStart = Color(0xFF0D1B3E)
+val DashboardBgEnd = Color(0xFF1A237E)
+
+// Top performer cards
+val TopSalesmanStart = Color(0xFFFF8F00)
+val TopSalesmanEnd = Color(0xFFE65100)
+val TopOutletStart = Color(0xFF00695C)
+val TopOutletEnd = Color(0xFF004D40)
+val TopProductStart = Color(0xFF6A1B9A)
+val TopProductEnd = Color(0xFF4A148C)
+val TopRouteStart = Color(0xFF00838F)
+val TopRouteEnd = Color(0xFF006064)
+
+// Drawer active item highlight
+val DrawerActiveItem = Color(0xFFD6E4FF)

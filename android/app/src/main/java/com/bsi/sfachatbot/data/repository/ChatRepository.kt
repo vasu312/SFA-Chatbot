@@ -1,7 +1,9 @@
 package com.bsi.sfachatbot.data.repository
 
 import com.bsi.sfachatbot.data.local.ChatDao
+import com.bsi.sfachatbot.data.local.ConversationDao
 import com.bsi.sfachatbot.data.local.entity.ChatMessageEntity
+import com.bsi.sfachatbot.data.local.entity.ConversationEntity
 import com.bsi.sfachatbot.data.remote.ApiService
 import com.bsi.sfachatbot.data.remote.dto.ChatRequest
 import com.bsi.sfachatbot.data.remote.dto.ChatResponse
@@ -19,25 +21,46 @@ import java.net.UnknownHostException
 
 class ChatRepository(
     private val apiService: ApiService,
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val conversationDao: ConversationDao
 ) {
     private val gson = Gson()
 
-    /** Observe all messages from Room (single source of truth). */
-    val allMessages: Flow<List<ChatMessage>> =
-        chatDao.getAllMessages().map { entities ->
+    // --- Conversation operations ---
+
+    fun getAllConversations(): Flow<List<ConversationEntity>> =
+        conversationDao.getAllConversations()
+
+    suspend fun getConversationCount(): Int = conversationDao.getCount()
+
+    suspend fun getMostRecentConversation(): ConversationEntity? =
+        conversationDao.getMostRecent()
+
+    suspend fun createConversation(title: String = "New Chat"): Long =
+        conversationDao.insert(ConversationEntity(title = title))
+
+    suspend fun updateConversationTitle(conversation: ConversationEntity, newTitle: String) {
+        conversationDao.update(conversation.copy(title = newTitle, updatedAt = System.currentTimeMillis()))
+    }
+
+    suspend fun deleteConversation(conversation: ConversationEntity) {
+        chatDao.deleteByConversation(conversation.id)
+        conversationDao.delete(conversation)
+    }
+
+    // --- Message operations ---
+
+    fun getMessagesForConversation(conversationId: Long): Flow<List<ChatMessage>> =
+        chatDao.getByConversation(conversationId).map { entities ->
             entities.map { it.toDomain() }
         }
 
-    /**
-     * Send a question to the backend:
-     * 1. Save user message to Room immediately (appears in chat).
-     * 2. Call API.
-     * 3. Save system response to Room.
-     */
-    suspend fun sendQuestion(question: String): NetworkResult<ChatMessage> {
+    suspend fun getMessageCount(conversationId: Long): Int =
+        chatDao.getMessageCount(conversationId)
+
+    suspend fun sendQuestion(question: String, conversationId: Long): NetworkResult<ChatMessage> {
         chatDao.insertMessage(
-            ChatMessageEntity(content = question, isUser = true)
+            ChatMessageEntity(conversationId = conversationId, content = question, isUser = true)
         )
 
         return try {
@@ -48,6 +71,7 @@ class ChatRepository(
                 val (answerText, tableData) = buildTableData(body)
                 val tableJson = tableData?.let { gson.toJson(it) }
                 val systemMessage = ChatMessageEntity(
+                    conversationId = conversationId,
                     content = answerText,
                     isUser = false,
                     sql = body.generatedSql,
@@ -57,6 +81,7 @@ class ChatRepository(
                 NetworkResult.Success(systemMessage.toDomain())
             } else {
                 val errorEntity = ChatMessageEntity(
+                    conversationId = conversationId,
                     content = "Server error. Please try again later.",
                     isUser = false
                 )
@@ -64,16 +89,16 @@ class ChatRepository(
                 NetworkResult.Error("Server error", response.code())
             }
         } catch (e: UnknownHostException) {
-            saveErrorMessage("No internet connection. Please check your network.")
+            saveErrorMessage(conversationId, "No internet connection. Please check your network.")
             NetworkResult.Error(e.localizedMessage ?: "No internet")
         } catch (e: SocketTimeoutException) {
-            saveErrorMessage("Request timed out. Please try again.")
+            saveErrorMessage(conversationId, "Request timed out. Please try again.")
             NetworkResult.Error(e.localizedMessage ?: "Timeout")
         } catch (e: IOException) {
-            saveErrorMessage("Network error. Please check your connection.")
+            saveErrorMessage(conversationId, "Network error. Please check your connection.")
             NetworkResult.Error(e.localizedMessage ?: "IO error")
         } catch (e: Exception) {
-            saveErrorMessage("Something went wrong. Please try again.")
+            saveErrorMessage(conversationId, "Something went wrong. Please try again.")
             NetworkResult.Error(e.localizedMessage ?: "Unknown error")
         }
     }
@@ -87,12 +112,14 @@ class ChatRepository(
         }
     }
 
-    suspend fun clearHistory() {
-        chatDao.clearAll()
+    suspend fun clearConversation(conversationId: Long) {
+        chatDao.deleteByConversation(conversationId)
     }
 
-    private suspend fun saveErrorMessage(message: String) {
-        chatDao.insertMessage(ChatMessageEntity(content = message, isUser = false))
+    private suspend fun saveErrorMessage(conversationId: Long, message: String) {
+        chatDao.insertMessage(
+            ChatMessageEntity(conversationId = conversationId, content = message, isUser = false)
+        )
     }
 
     private fun mapApiError(error: String?): String {

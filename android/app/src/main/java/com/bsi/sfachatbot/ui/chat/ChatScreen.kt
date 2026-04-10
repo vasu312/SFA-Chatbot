@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -34,12 +33,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -69,18 +67,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.bsi.sfachatbot.data.remote.dto.SummaryResponse
-import com.bsi.sfachatbot.data.remote.dto.SummaryStats
 import com.bsi.sfachatbot.model.ChatMessage
 import com.bsi.sfachatbot.model.TableData
 import com.bsi.sfachatbot.ui.theme.AppBarEnd
 import com.bsi.sfachatbot.ui.theme.AppBarStart
-import com.bsi.sfachatbot.ui.theme.CardDayEnd
-import com.bsi.sfachatbot.ui.theme.CardDayStart
-import com.bsi.sfachatbot.ui.theme.CardMonthEnd
-import com.bsi.sfachatbot.ui.theme.CardMonthStart
 import com.bsi.sfachatbot.ui.theme.ChipBackground
 import com.bsi.sfachatbot.ui.theme.ChipBorder
 import com.bsi.sfachatbot.ui.theme.ChipText
@@ -103,12 +94,20 @@ private val SUGGESTED_QUESTIONS = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(viewModel: ChatViewModel) {
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    onOpenDrawer: () -> Unit
+) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val summary by viewModel.summary.collectAsStateWithLifecycle()
+    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
+    val currentConversationId by viewModel.currentConversationId.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    val currentTitle = remember(conversations, currentConversationId) {
+        conversations.find { it.id == currentConversationId }?.title ?: "SFA Chatbot"
+    }
 
     LaunchedEffect(messages.size, isLoading) {
         val itemCount = messages.size + if (isLoading) 1 else 0
@@ -123,9 +122,11 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 title = {
                     Column {
                         Text(
-                            text = "SFA Chatbot",
+                            text = currentTitle,
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "Sales Force Automation",
@@ -134,11 +135,11 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = { viewModel.clearHistory() }) {
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
                         Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Clear history",
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Open menu",
                             tint = Color.White
                         )
                     }
@@ -176,9 +177,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item {
-                SummarySection(summary = summary)
-            }
             items(messages, key = { it.id }) { message ->
                 MessageBubble(message = message)
             }
@@ -186,126 +184,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 item { ShimmerBubble() }
             }
         }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Summary cards
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun SummarySection(summary: SummaryResponse?) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (summary == null) {
-            // Loading state for both cards
-            repeat(2) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(130.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        } else {
-            SummaryCard(
-                modifier = Modifier.weight(1f),
-                title = "TODAY",
-                emoji = "📅",
-                gradient = Brush.linearGradient(
-                    colors = listOf(CardDayStart, CardDayEnd),
-                    start = Offset(0f, 0f),
-                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-                ),
-                stats = summary.day
-            )
-            SummaryCard(
-                modifier = Modifier.weight(1f),
-                title = "THIS MONTH",
-                emoji = "📊",
-                gradient = Brush.linearGradient(
-                    colors = listOf(CardMonthStart, CardMonthEnd),
-                    start = Offset(0f, 0f),
-                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-                ),
-                stats = summary.month
-            )
-        }
-    }
-}
-
-@Composable
-private fun SummaryCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    emoji: String,
-    gradient: Brush,
-    stats: SummaryStats
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(gradient)
-            .padding(12.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = emoji, fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-            HorizontalDivider(color = Color.White.copy(alpha = 0.3f), thickness = 0.5.dp)
-            StatRow(label = "Orders", value = stats.orderCount.toString())
-            StatRow(label = "Value", value = formatValue(stats.orderValue))
-            StatRow(label = "Visits", value = stats.totalVisits.toString())
-            StatRow(label = "Lines", value = stats.linesSold.toString())
-        }
-    }
-}
-
-@Composable
-private fun StatRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.85f)
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-    }
-}
-
-private fun formatValue(value: Double): String {
-    return when {
-        value >= 1_000_000 -> "%.1fM".format(value / 1_000_000)
-        value >= 1_000 -> "%.1fK".format(value / 1_000)
-        else -> "%.0f".format(value)
     }
 }
 

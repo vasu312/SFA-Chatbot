@@ -14,6 +14,6 @@ class SfaChatbotApplication : Application() {
         super.onCreate()
         val apiService = ApiClient.create()
         val database = ChatDatabase.getInstance(this)
-        chatRepository = ChatRepository(apiService, database.chatDao())
+        chatRepository = ChatRepository(apiService, database.chatDao(), database.conversationDao())
     }
 }

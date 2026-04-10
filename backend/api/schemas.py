@@ -49,7 +49,16 @@ class SummaryStats(BaseModel):
     lines_sold: int
 
 
+class TopPerformer(BaseModel):
+    name: str
+    value: float
+
+
 class SummaryResponse(BaseModel):
     day: SummaryStats
     month: SummaryStats
     reference_date: str
+    top_salesman: Optional[TopPerformer] = None
+    top_outlet: Optional[TopPerformer] = None
+    top_product: Optional[TopPerformer] = None
+    top_route: Optional[TopPerformer] = None

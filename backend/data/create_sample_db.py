@@ -2,6 +2,7 @@
 
 import sqlite3
 import os
+from datetime import date
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "sfa.db")
 
@@ -265,6 +266,52 @@ def create_db():
     ]
     cursor.executemany("INSERT INTO order_items VALUES (?, ?, ?, ?, ?)", order_items)
 
+    # --- Today's data (always uses actual today so the dashboard always shows live numbers) ---
+    today = str(date.today())
+
+    today_orders = [
+        ("ORD021", "O001", "S001", f"{today} 08:55:00", 1680.00, "completed"),
+        ("ORD022", "O003", "S002", f"{today} 09:30:00",  560.00, "completed"),
+        ("ORD023", "O005", "S002", f"{today} 10:45:00", 2320.00, "completed"),
+        ("ORD024", "O007", "S003", f"{today} 11:00:00",  380.00, "completed"),
+        ("ORD025", "O009", "S004", f"{today} 14:00:00", 1710.00, "completed"),
+        ("ORD026", "O010", "S004", f"{today} 15:30:00",  420.00, "pending"),   # pending — not counted
+    ]
+    cursor.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?)", today_orders)
+
+    today_visits = [
+        ("V026", "S001", "O001", f"{today} 08:40:00", "true"),
+        ("V027", "S001", "O002", f"{today} 10:15:00", "false"),
+        ("V028", "S002", "O003", f"{today} 09:10:00", "true"),
+        ("V029", "S002", "O005", f"{today} 10:30:00", "true"),
+        ("V030", "S003", "O007", f"{today} 10:45:00", "true"),
+        ("V031", "S004", "O009", f"{today} 13:45:00", "true"),
+        ("V032", "S004", "O010", f"{today} 15:20:00", "true"),
+    ]
+    cursor.executemany("INSERT INTO visits VALUES (?, ?, ?, ?, ?)", today_visits)
+
+    today_order_items = [
+        # ORD021 (O001, S001) = 1680
+        ("OI050", "ORD021", "P001", 3, 450.00),   # 1350
+        ("OI051", "ORD021", "P003", 1, 180.00),   #  180
+        ("OI052", "ORD021", "P010", 5,  30.00),   #  150  → 1680 ✓
+        # ORD022 (O003, S002) = 560
+        ("OI053", "ORD022", "P004", 8,  25.00),   #  200
+        ("OI054", "ORD022", "P005", 3, 120.00),   #  360  →  560 ✓
+        # ORD023 (O005, S002) = 2320
+        ("OI055", "ORD023", "P001", 4, 450.00),   # 1800
+        ("OI056", "ORD023", "P007", 2, 150.00),   #  300
+        ("OI057", "ORD023", "P009", 2, 110.00),   #  220  → 2320 ✓
+        # ORD024 (O007, S003) = 380
+        ("OI058", "ORD024", "P006", 3,  85.00),   #  255
+        ("OI059", "ORD024", "P004", 5,  25.00),   #  125  →  380 ✓
+        # ORD025 (O009, S004) = 1710
+        ("OI060", "ORD025", "P001", 3, 450.00),   # 1350
+        ("OI061", "ORD025", "P003", 1, 180.00),   #  180
+        ("OI062", "ORD025", "P008", 3,  60.00),   #  180  → 1710 ✓
+    ]
+    cursor.executemany("INSERT INTO order_items VALUES (?, ?, ?, ?, ?)", today_order_items)
+
     conn.commit()
     conn.close()
     print(f"Database created at: {DB_PATH}")
@@ -274,6 +321,20 @@ def create_db():
     for table in ["routes", "products", "salesmen", "outlets", "salesman_routes", "orders", "visits", "order_items"]:
         count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         print(f"  {table}: {count} rows")
+
+    today_str = str(date.today())
+    today_orders_count = conn.execute(
+        "SELECT COUNT(*) FROM orders WHERE date(order_date) = ? AND status = 'completed'", (today_str,)
+    ).fetchone()[0]
+    today_value = conn.execute(
+        "SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE date(order_date) = ? AND status = 'completed'", (today_str,)
+    ).fetchone()[0]
+    month_str = today_str[:7]
+    month_orders_count = conn.execute(
+        "SELECT COUNT(*) FROM orders WHERE strftime('%Y-%m', order_date) = ? AND status = 'completed'", (month_str,)
+    ).fetchone()[0]
+    print(f"\nToday ({today_str}): {today_orders_count} completed orders, value = {today_value}")
+    print(f"This month ({month_str}): {month_orders_count} completed orders")
     conn.close()
 
 

@@ -1,5 +1,6 @@
 import sqlite3
 from contextlib import contextmanager
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from config import settings
@@ -49,19 +50,16 @@ def check_connection() -> bool:
 
 
 def get_summary_stats() -> Dict[str, Any]:
-    """Return day and month summary stats using the most recent order date as reference."""
+    """Return day and month summary stats using actual today's date as reference.
+    Shows 0 for today/this month if no data exists — never falls back to last billed date.
+    """
+    ref_date = str(date.today())          # always actual today
+    ref_month = ref_date[:7]              # "YYYY-MM"
+
+    def _zero_stats() -> Dict[str, Any]:
+        return {"order_count": 0, "order_value": 0.0, "total_visits": 0, "lines_sold": 0}
+
     with get_readonly_connection() as conn:
-        # Use the most recent date in orders as the reference "today"
-        row = conn.execute("SELECT date(MAX(order_date)) FROM orders").fetchone()
-        ref_date: Optional[str] = row[0] if row else None
-
-        def _zero_stats() -> Dict[str, Any]:
-            return {"order_count": 0, "order_value": 0.0, "total_visits": 0, "lines_sold": 0}
-
-        if not ref_date:
-            return {"day": _zero_stats(), "month": _zero_stats(), "reference_date": ""}
-
-        ref_month = ref_date[:7]  # "YYYY-MM"
 
         def _order_stats(date_filter: str, date_value: str) -> Dict[str, Any]:
             order_row = conn.execute(
@@ -91,4 +89,48 @@ def get_summary_stats() -> Dict[str, Any]:
             "SELECT COUNT(*) FROM visits WHERE strftime('%Y-%m', visit_date) = ?", (ref_month,)
         ).fetchone()[0] or 0
 
-        return {"day": day_stats, "month": month_stats, "reference_date": ref_date}
+        top_salesman = conn.execute(
+            "SELECT s.name, COALESCE(SUM(o.total_amount), 0) AS val "
+            "FROM orders o JOIN salesmen s ON o.salesman_id = s.id "
+            "WHERE strftime('%Y-%m', o.order_date) = ? AND o.status = 'completed' "
+            "GROUP BY s.id ORDER BY val DESC LIMIT 1",
+            (ref_month,),
+        ).fetchone()
+
+        top_outlet = conn.execute(
+            "SELECT ot.name, COALESCE(SUM(o.total_amount), 0) AS val "
+            "FROM orders o JOIN outlets ot ON o.outlet_id = ot.id "
+            "WHERE strftime('%Y-%m', o.order_date) = ? AND o.status = 'completed' "
+            "GROUP BY ot.id ORDER BY val DESC LIMIT 1",
+            (ref_month,),
+        ).fetchone()
+
+        top_product = conn.execute(
+            "SELECT p.name, COALESCE(SUM(oi.quantity), 0) AS val "
+            "FROM order_items oi "
+            "JOIN products p ON oi.product_id = p.id "
+            "JOIN orders o ON oi.order_id = o.id "
+            "WHERE strftime('%Y-%m', o.order_date) = ? AND o.status = 'completed' "
+            "GROUP BY p.id ORDER BY val DESC LIMIT 1",
+            (ref_month,),
+        ).fetchone()
+
+        top_route = conn.execute(
+            "SELECT r.name, COALESCE(SUM(o.total_amount), 0) AS val "
+            "FROM orders o "
+            "JOIN outlets ot ON o.outlet_id = ot.id "
+            "JOIN routes r ON ot.route_id = r.id "
+            "WHERE strftime('%Y-%m', o.order_date) = ? AND o.status = 'completed' "
+            "GROUP BY r.id ORDER BY val DESC LIMIT 1",
+            (ref_month,),
+        ).fetchone()
+
+        return {
+            "day": day_stats,
+            "month": month_stats,
+            "reference_date": ref_date,
+            "top_salesman": {"name": top_salesman[0], "value": float(top_salesman[1])} if top_salesman else None,
+            "top_outlet": {"name": top_outlet[0], "value": float(top_outlet[1])} if top_outlet else None,
+            "top_product": {"name": top_product[0], "value": float(top_product[1])} if top_product else None,
+            "top_route": {"name": top_route[0], "value": float(top_route[1])} if top_route else None,
+        }

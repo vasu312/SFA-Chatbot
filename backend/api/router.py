@@ -49,6 +49,10 @@ async def summary():
         day=data["day"],
         month=data["month"],
         reference_date=data["reference_date"],
+        top_salesman=data.get("top_salesman"),
+        top_outlet=data.get("top_outlet"),
+        top_product=data.get("top_product"),
+        top_route=data.get("top_route"),
     )
 
 

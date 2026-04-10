@@ -5,11 +5,17 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.bsi.sfachatbot.data.local.entity.ChatMessageEntity
+import com.bsi.sfachatbot.data.local.entity.ConversationEntity
 
-@Database(entities = [ChatMessageEntity::class], version = 2, exportSchema = false)
+@Database(
+    entities = [ChatMessageEntity::class, ConversationEntity::class],
+    version = 3,
+    exportSchema = false
+)
 abstract class ChatDatabase : RoomDatabase() {
 
     abstract fun chatDao(): ChatDao
+    abstract fun conversationDao(): ConversationDao
 
     companion object {
         @Volatile
